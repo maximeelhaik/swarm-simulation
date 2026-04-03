@@ -76,6 +76,12 @@ export class Vector {
     return Math.atan2(this.y, this.x);
   }
 
+  lerp(v: Vector, amount: number) {
+    this.x += (v.x - this.x) * amount;
+    this.y += (v.y - this.y) * amount;
+    return this;
+  }
+
   static sub(v1: Vector, v2: Vector) {
     return new Vector(v1.x - v2.x, v1.y - v2.y);
   }

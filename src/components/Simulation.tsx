@@ -1,10 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Vector } from "../lib/vector"
-import { Boid, BoidConfig } from "../lib/boid"
-import { SpatialGrid } from "../lib/spatial-grid"
-import { INITIAL_CONTROLS, getComputedConfig } from "../lib/config"
+import { Settings2, X } from "lucide-react"
+import { Vector } from "@/lib/vector"
+import { Boid, BoidConfig } from "@/lib/boid"
+import { SpatialGrid } from "@/lib/spatial-grid"
+import { INITIAL_CONTROLS, getComputedConfig } from "@/lib/config"
 
 interface SliderProps {
   label: string;
@@ -18,8 +19,8 @@ interface SliderProps {
 
 function Slider({ label, value, min, max, step, onChange, formatValue = (v) => v.toString() }: SliderProps) {
   return (
-    <div className="space-y-1">
-      <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+    <div className="space-y-1.5">
+      <label className="flex items-center justify-between gap-3 text-xs text-slate-300">
         <span>{label}</span>
         <span className="font-mono text-cyan-300">{formatValue(value)}</span>
       </label>
@@ -30,7 +31,7 @@ function Slider({ label, value, min, max, step, onChange, formatValue = (v) => v
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-cyan-400"
+        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-slate-800 accent-cyan-400"
       />
     </div>
   )
@@ -39,33 +40,38 @@ function Slider({ label, value, min, max, step, onChange, formatValue = (v) => v
 export default function Simulation() {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
   const animationRef = useRef<number>(0)
   const flockRef = useRef<Boid[]>([])
   const gridRef = useRef<SpatialGrid | null>(null)
   const sizeRef = useRef({ width: 1200, height: 800 })
   const fpsFramesRef = useRef(0)
   const fpsLastRef = useRef(0)
-  const resizeStateRef = useRef({ resizing: false, startX: 0, startWidth: 360 })
-  const mousePredatorRef = useRef({ pos: new Vector(0, 0), inside: false, radius: 14 })
-  const attackModeRef = useRef(false)
-  
+  const hiddenRef = useRef(false)
+  const resizeStateRef = useRef({ resizing: false, startX: 0, startWidth: 320 })
+  const mousePredatorRef = useRef({
+    pos: new Vector(0, 0),
+    target: new Vector(0, 0),
+    inside: false,
+    radius: 15,
+  })
+
   const [controls, setControls] = useState(INITIAL_CONTROLS)
   const configRef = useRef<BoidConfig>(getComputedConfig(controls))
   const [fps, setFps] = useState(0)
   const [agentCount, setAgentCount] = useState(INITIAL_CONTROLS.count)
-  const [attackMode, setAttackMode] = useState(false)
-  const [panelWidth, setPanelWidth] = useState(360)
-  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const [panelWidth, setPanelWidth] = useState(320)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [cursorVisible, setCursorVisible] = useState(false)
+  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 })
 
   const uiMeta = useMemo(
     () => [
-      { key: "count" as const, label: "Nombre d'agents", min: 10, max: 5000, step: 10 },
+      { key: "count" as const, label: "Agents", min: 80, max: 2600, step: 10 },
       {
         key: "maxSpeed" as const,
         label: "Vitesse moyenne",
-        min: 0.4,
-        max: 12,
+        min: 0.6,
+        max: 8,
         step: 0.1,
         formatValue: (v: number) => v.toFixed(1),
       },
@@ -73,46 +79,46 @@ export default function Simulation() {
         key: "topoNeighbors" as const,
         label: "Voisins topologiques",
         min: 3,
-        max: 16,
+        max: 14,
         step: 1,
       },
       {
         key: "separationWeight" as const,
-        label: "Séparation (évitement)",
+        label: "Séparation",
         min: 0,
-        max: 5,
-        step: 0.1,
-        formatValue: (v: number) => v.toFixed(1),
+        max: 4,
+        step: 0.05,
+        formatValue: (v: number) => v.toFixed(2),
       },
       {
         key: "alignmentWeight" as const,
         label: "Alignement",
         min: 0,
-        max: 5,
-        step: 0.1,
-        formatValue: (v: number) => v.toFixed(1),
+        max: 4,
+        step: 0.05,
+        formatValue: (v: number) => v.toFixed(2),
       },
       {
         key: "cohesionWeight" as const,
-        label: "Cohésion (attraction)",
+        label: "Cohésion",
         min: 0,
-        max: 5,
-        step: 0.1,
-        formatValue: (v: number) => v.toFixed(1),
+        max: 4,
+        step: 0.05,
+        formatValue: (v: number) => v.toFixed(2),
       },
       {
         key: "noiseLevel" as const,
-        label: "Bruit (température / désordre)",
+        label: "Bruit",
         min: 0,
-        max: 1,
-        step: 0.005,
+        max: 0.12,
+        step: 0.001,
         formatValue: (v: number) => v.toFixed(3),
       },
       {
         key: "occlusionThreshold" as const,
-        label: "Occlusion visuelle (angle)",
+        label: "Occlusion visuelle",
         min: 0,
-        max: 1,
+        max: 0.6,
         step: 0.01,
         formatValue: (v: number) => v.toFixed(2),
       },
@@ -138,15 +144,17 @@ export default function Simulation() {
   }, [controls])
 
   useEffect(() => {
-    attackModeRef.current = attackMode
-    if (!attackMode) {
-      mousePredatorRef.current.inside = false
-    }
-  }, [attackMode])
-
-  useEffect(() => {
     createFlock(controls.count)
   }, [controls.count, createFlock])
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      hiddenRef.current = document.hidden
+    }
+
+    document.addEventListener("visibilitychange", handleVisibility)
+    return () => document.removeEventListener("visibilitychange", handleVisibility)
+  }, [])
 
   useEffect(() => {
     const updateSize = () => {
@@ -157,7 +165,7 @@ export default function Simulation() {
       const rect = container.getBoundingClientRect()
       const width = Math.max(1, Math.floor(rect.width))
       const height = Math.max(1, Math.floor(rect.height))
-      const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1
+      const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 1.5) : 1
 
       sizeRef.current = { width, height }
 
@@ -167,19 +175,15 @@ export default function Simulation() {
       canvas.style.height = `${height}px`
 
       const ctx = canvas.getContext("2d", { alpha: false })
-      if (ctx) {
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      }
+      if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
       if (!gridRef.current) {
-        gridRef.current = new SpatialGrid(width, height, 50)
+        gridRef.current = new SpatialGrid(width, height, 52)
       } else {
         gridRef.current.resize(width, height)
       }
 
-      if (flockRef.current.length === 0) {
-        createFlock(controls.count)
-      }
+      if (flockRef.current.length === 0) createFlock(configRef.current.count)
     }
 
     updateSize()
@@ -192,40 +196,49 @@ export default function Simulation() {
       observer.disconnect()
       window.removeEventListener("resize", updateSize)
     }
-  }, [createFlock, controls.count])
+  }, [createFlock])
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const container = containerRef.current
+    if (!container) return
 
     const updateMouse = (e: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect()
-      mousePredatorRef.current.pos.x = e.clientX - rect.left
-      mousePredatorRef.current.pos.y = e.clientY - rect.top
-      mousePredatorRef.current.inside = attackModeRef.current
+      const rect = container.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      mousePredatorRef.current.target.x = x
+      mousePredatorRef.current.target.y = y
+      if (!mousePredatorRef.current.inside) {
+        mousePredatorRef.current.pos.x = x
+        mousePredatorRef.current.pos.y = y
+      }
+      mousePredatorRef.current.inside = true
+      setCursorPosition({ x, y })
+      setCursorVisible(true)
     }
 
     const onLeave = () => {
       mousePredatorRef.current.inside = false
+      setCursorVisible(false)
     }
 
-    canvas.addEventListener("pointermove", updateMouse)
-    canvas.addEventListener("pointerenter", updateMouse)
-    canvas.addEventListener("pointerleave", onLeave)
+    container.addEventListener("pointermove", updateMouse)
+    container.addEventListener("pointerenter", updateMouse)
+    container.addEventListener("pointerleave", onLeave)
 
     return () => {
-      canvas.removeEventListener("pointermove", updateMouse)
-      canvas.removeEventListener("pointerenter", updateMouse)
-      canvas.removeEventListener("pointerleave", onLeave)
+      container.removeEventListener("pointermove", updateMouse)
+      container.removeEventListener("pointerenter", updateMouse)
+      container.removeEventListener("pointerleave", onLeave)
     }
   }, [])
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
       if (!resizeStateRef.current.resizing) return
-      const maxPanelWidth = Math.min(640, sizeRef.current.width - 24)
+      const maxPanelWidth = Math.min(520, sizeRef.current.width - 24)
       const nextWidth = resizeStateRef.current.startWidth + (e.clientX - resizeStateRef.current.startX)
-      setPanelWidth(Math.max(280, Math.min(maxPanelWidth, nextWidth)))
+      setPanelWidth(Math.max(260, Math.min(maxPanelWidth, nextWidth)))
     }
 
     const onUp = () => {
@@ -249,12 +262,17 @@ export default function Simulation() {
     if (!ctx) return
 
     const render = (time: number) => {
+      animationRef.current = requestAnimationFrame(render)
+      if (hiddenRef.current) return
+
       const config = configRef.current
       const flock = flockRef.current
       const grid = gridRef.current
       const { width, height } = sizeRef.current
       const mousePredator = mousePredatorRef.current
-      const activePredators = attackModeRef.current && mousePredator.inside ? [mousePredator] : []
+
+      mousePredator.pos.lerp(mousePredator.target, 0.16)
+      const activePredators = mousePredator.inside ? [{ pos: mousePredator.pos }] : []
 
       fpsFramesRef.current += 1
       if (time - fpsLastRef.current >= 1000) {
@@ -263,7 +281,14 @@ export default function Simulation() {
         fpsLastRef.current = time
       }
 
-      ctx.fillStyle = "#0b1021"
+      ctx.fillStyle = "#030d26"
+      ctx.fillRect(0, 0, width, height)
+
+      const bgGradient = ctx.createRadialGradient(width * 0.5, height * 0.38, 40, width * 0.5, height * 0.38, Math.max(width, height) * 0.7)
+      bgGradient.addColorStop(0, "rgba(18, 45, 95, 0.22)")
+      bgGradient.addColorStop(0.55, "rgba(10, 22, 55, 0.10)")
+      bgGradient.addColorStop(1, "rgba(0, 0, 0, 0)")
+      ctx.fillStyle = bgGradient
       ctx.fillRect(0, 0, width, height)
 
       if (grid) {
@@ -283,22 +308,6 @@ export default function Simulation() {
         boid.edges(width, height)
         boid.draw(ctx)
       }
-
-      if (attackModeRef.current && mousePredator.inside) {
-        ctx.save()
-        ctx.beginPath()
-        ctx.arc(mousePredator.pos.x, mousePredator.pos.y, mousePredator.radius, 0, Math.PI * 2)
-        ctx.fillStyle = "rgba(245, 87, 108, 0.92)"
-        ctx.shadowColor = "rgba(245, 87, 108, 0.9)"
-        ctx.shadowBlur = 28
-        ctx.fill()
-        ctx.lineWidth = 2
-        ctx.strokeStyle = "rgba(255,255,255,0.85)"
-        ctx.stroke()
-        ctx.restore()
-      }
-
-      animationRef.current = requestAnimationFrame(render)
     }
 
     animationRef.current = requestAnimationFrame(render)
@@ -312,12 +321,7 @@ export default function Simulation() {
     setControls((prev) => ({ ...prev, [key]: value }))
   }
 
-  const toggleAttackMode = () => {
-    setAttackMode((prev) => !prev)
-  }
-
   const resetSimulation = () => {
-    mousePredatorRef.current.inside = false
     createFlock(controls.count)
   }
 
@@ -331,38 +335,30 @@ export default function Simulation() {
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={`relative h-screen w-full overflow-hidden bg-[#0b1021] text-white ${attackMode ? "cursor-none" : "cursor-default"}`}
-    >
+    <div ref={containerRef} className="relative h-screen w-full overflow-hidden bg-[#030d26] text-white cursor-none">
       <canvas ref={canvasRef} className="absolute inset-0 block" />
 
-      {panelCollapsed ? (
-        <button
-          onClick={() => setPanelCollapsed(false)}
-          className="absolute left-3 top-3 z-20 rounded-2xl border border-slate-700/70 bg-slate-950/85 px-4 py-3 text-sm font-medium text-slate-100 shadow-2xl backdrop-blur-xl transition hover:bg-slate-900"
-        >
-          Ouvrir les réglages
-        </button>
-      ) : (
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(74,144,226,0.08),transparent_45%),linear-gradient(to_bottom,rgba(1,8,24,0.18),rgba(1,8,24,0.42))]" />
+
+      {panelOpen ? (
         <div
-          ref={panelRef}
-          className="absolute left-3 top-3 z-10 max-h-[calc(100vh-24px)] overflow-hidden rounded-3xl border border-slate-700/70 bg-slate-950/80 shadow-2xl backdrop-blur-xl"
-          style={{ width: panelWidth, maxWidth: "calc(100vw - 24px)" }}
+          className="absolute left-4 top-4 z-20 max-h-[calc(100vh-32px)] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/72 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+          style={{ width: panelWidth, maxWidth: "calc(100vw - 32px)" }}
         >
           <div className="relative h-full overflow-y-auto p-4">
-            <div className="mb-4 flex items-start justify-between gap-3 border-b border-slate-800 pb-3 pr-4">
+            <div className="mb-4 flex items-start justify-between gap-3 border-b border-white/10 pb-3 pr-4">
               <div>
-                <h1 className="text-lg font-semibold text-cyan-300">Simulation d'essaim</h1>
-                <p className="mt-1 text-sm text-slate-400">
-                  Modèle avec voisinage topologique, occlusion et prédateur piloté à la souris.
+                <h1 className="text-sm font-semibold tracking-wide text-cyan-200">Hero background swarm</h1>
+                <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                  Réglages compacts pour un fond de hero fluide, discret et réactif à la souris.
                 </p>
               </div>
               <button
-                onClick={() => setPanelCollapsed(true)}
-                className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-slate-800"
+                onClick={() => setPanelOpen(false)}
+                className="rounded-xl border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:bg-white/10"
+                aria-label="Fermer les réglages"
               >
-                Réduire
+                <X className="h-4 w-4" />
               </button>
             </div>
 
@@ -381,39 +377,28 @@ export default function Simulation() {
               ))}
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-2">
-              <button
-                onClick={toggleAttackMode}
-                className={`rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:scale-[1.01] active:scale-[0.99] ${
-                  attackMode
-                    ? "bg-gradient-to-r from-emerald-500 to-cyan-500"
-                    : "bg-gradient-to-r from-rose-500 to-fuchsia-500"
-                }`}
-              >
-                {attackMode ? "Désactiver le mode prédateur" : "Activer le mode prédateur (souris)"}
-              </button>
+            <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                <div className="text-slate-400">Agents</div>
+                <div className="mt-1 text-lg font-semibold text-cyan-200">{agentCount}</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                <div className="text-slate-400">FPS</div>
+                <div className="mt-1 text-lg font-semibold text-cyan-200">{fps}</div>
+              </div>
+            </div>
+
+            <div className="mt-4 flex gap-2">
               <button
                 onClick={resetSimulation}
-                className="rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-medium text-slate-100 transition hover:bg-slate-800"
+                className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-medium text-slate-100 transition hover:bg-white/10"
               >
-                Réinitialiser l'essaim
+                Réinitialiser
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
-                <div className="text-slate-400">Agents actifs</div>
-                <div className="mt-1 text-xl font-semibold text-cyan-300">{agentCount}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
-                <div className="text-slate-400">FPS</div>
-                <div className="mt-1 text-xl font-semibold text-cyan-300">{fps}</div>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-xs leading-relaxed text-slate-400">
-              Le panneau peut être élargi ou rétréci en glissant sa bordure droite. En mode prédateur, la souris devient une boule rouge qui perturbe
-              l'essaim en temps réel.
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-[11px] leading-relaxed text-slate-400">
+              Le cercle bleu agit comme un prédateur doux activé en permanence. Glisse la bordure droite du panneau pour le redimensionner.
             </div>
           </div>
 
@@ -423,7 +408,30 @@ export default function Simulation() {
             aria-label="Redimensionner le panneau"
             title="Glisser pour redimensionner"
           >
-            <div className="absolute right-1 top-1/2 h-16 w-[2px] -translate-y-1/2 rounded-full bg-slate-600/70" />
+            <div className="absolute right-1 top-1/2 h-16 w-[2px] -translate-y-1/2 rounded-full bg-white/20" />
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setPanelOpen(true)}
+          className="absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/45 px-3 py-2 text-xs font-medium text-slate-200 shadow-[0_8px_24px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:bg-slate-900/60"
+          aria-label="Ouvrir les réglages"
+        >
+          <Settings2 className="h-3.5 w-3.5" />
+          Réglages
+        </button>
+      )}
+
+      {cursorVisible && (
+        <div className="pointer-events-none absolute inset-0 z-30">
+          <div
+            className="absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-300/90 bg-cyan-300/10 shadow-[0_0_24px_rgba(56,189,248,0.45)]"
+            style={{
+              left: cursorPosition.x,
+              top: cursorPosition.y,
+            }}
+          >
+            <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-200" />
           </div>
         </div>
       )}

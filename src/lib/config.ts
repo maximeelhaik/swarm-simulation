@@ -1,29 +1,29 @@
-import { BoidConfig } from "@/lib/boid";
+import { BoidConfig } from "./boid";
 
 export const INITIAL_CONTROLS = {
-  count: 1600,
-  maxSpeed: 3.2,
-  separationWeight: 0.9,
-  alignmentWeight: 2.2,
-  cohesionWeight: 1.6,
-  noiseLevel: 0.01,
-  occlusionThreshold: 0.2,
-  topoNeighbors: 9,
+  count: 670,
+  maxSpeed: 3.3,
+  topoNeighbors: 7,
+  separationWeight: 4.0,
+  alignmentWeight: 4.0,
+  cohesionWeight: 0.9,
+  noiseLevel: 0.0,
+  occlusionThreshold: 0.39,
 };
 
 export const BASE_CONFIG: Partial<BoidConfig> = {
-  maxSpeed: 3.2,
-  maxForce: 0.12,
-  topoNeighbors: 9,
-  perceptionRadius: 180,
-  predatorRadius: 120,
-  predatorForce: 10,
+  maxSpeed: 2.8,
+  maxForce: 0.1,
+  topoNeighbors: 7,
+  perceptionRadius: 170,
+  predatorRadius: 110,
+  predatorForce: 6.2,
 };
 
 export function getComputedConfig(controls: typeof INITIAL_CONTROLS): BoidConfig {
   return {
     ...BASE_CONFIG,
     ...controls,
-    maxForce: Math.min(0.35, Math.max(0.08, controls.maxSpeed * 0.03)),
+    maxForce: Math.min(0.22, Math.max(0.08, controls.maxSpeed * 0.028)),
   } as BoidConfig;
 }

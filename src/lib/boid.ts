@@ -1,4 +1,4 @@
-import { Vector } from "@/lib/vector";
+import { Vector } from "./vector";
 
 export interface BoidConfig {
   maxSpeed: number;
@@ -22,7 +22,7 @@ export class Boid {
 
   constructor(x: number, y: number, config: BoidConfig) {
     this.pos = new Vector(x, y);
-    this.vel = Vector.random2D().mult((0.45 + Math.random() * 0.55) * config.maxSpeed);
+    this.vel = Vector.random2D().mult((0.55 + Math.random() * 0.35) * config.maxSpeed);
     this.acc = new Vector(0, 0);
     this.isPeripheral = false;
   }
@@ -70,14 +70,14 @@ export class Boid {
     this.isPeripheral =
       visibleNeighbors.length < config.topoNeighbors ||
       (visibleNeighbors.length > 0 &&
-        visibleNeighbors[visibleNeighbors.length - 1].dist > config.perceptionRadius * 0.6);
+        visibleNeighbors[visibleNeighbors.length - 1].dist > config.perceptionRadius * 0.62);
 
     let localNoise = config.noiseLevel;
     let localSpeed = config.maxSpeed;
 
     if (this.isPeripheral) {
-      localNoise *= 2.2;
-      localSpeed *= 1.08;
+      localNoise *= 1.8;
+      localSpeed *= 1.04;
     }
 
     const alignment = new Vector(0, 0);
@@ -89,7 +89,7 @@ export class Boid {
       alignment.add(item.boid.vel);
       cohesion.add(item.boid.pos);
 
-      if (item.dist > 0 && item.dist < config.perceptionRadius * 0.3) {
+      if (item.dist > 0 && item.dist < config.perceptionRadius * 0.28) {
         const diff = Vector.sub(this.pos, item.boid.pos);
         diff.normalize().div(item.dist);
         separation.add(diff);
@@ -120,11 +120,11 @@ export class Boid {
     }
 
     const evade = new Vector(0, 0);
-    for (const p of predators) {
-      const d = this.pos.dist(p.pos);
+    for (const predator of predators) {
+      const d = this.pos.dist(predator.pos);
       if (d < config.predatorRadius) {
-        const diff = Vector.sub(this.pos, p.pos);
-        diff.normalize().div(Math.max(d / 10, 0.0001));
+        const diff = Vector.sub(this.pos, predator.pos);
+        diff.normalize().div(Math.max(d / 16, 0.0001));
         evade.add(diff);
       }
     }
@@ -141,7 +141,7 @@ export class Boid {
   update(config: BoidConfig) {
     this.pos.add(this.vel);
     this.vel.add(this.acc);
-    this.vel.limit(this.isPeripheral ? config.maxSpeed * 1.08 : config.maxSpeed);
+    this.vel.limit(this.isPeripheral ? config.maxSpeed * 1.04 : config.maxSpeed);
     this.acc.mult(0);
   }
 
@@ -152,13 +152,12 @@ export class Boid {
     ctx.rotate(theta);
 
     ctx.beginPath();
-    ctx.moveTo(0, -4);
-    ctx.lineTo(-3, 4);
-    ctx.lineTo(3, 4);
+    ctx.moveTo(0, -3.4);
+    ctx.lineTo(-2.6, 3.4);
+    ctx.lineTo(2.6, 3.4);
     ctx.closePath();
 
-    ctx.fillStyle = this.isPeripheral ? "#22eaff" : "#4f9cf6";
-    ctx.globalAlpha = this.isPeripheral ? 0.92 : 0.68;
+    ctx.fillStyle = this.isPeripheral ? "rgba(54, 226, 255, 0.92)" : "rgba(116, 170, 255, 0.72)";
     ctx.fill();
     ctx.restore();
   }

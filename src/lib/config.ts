@@ -1,4 +1,4 @@
-import { BoidConfig } from "./boid";
+import { BoidConfig } from "@/lib/boid";
 
 export const INITIAL_CONTROLS = {
   count: 1600,

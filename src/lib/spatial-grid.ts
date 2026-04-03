@@ -1,5 +1,5 @@
-import { Vector } from "./vector";
-import { Boid } from "./boid";
+import { Vector } from "@/lib/vector";
+import { Boid } from "@/lib/boid";
 
 export class SpatialGrid {
   cellSize: number;

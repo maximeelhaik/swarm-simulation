@@ -183,7 +183,7 @@ export default function Simulation() {
         gridRef.current.resize(width, height)
       }
 
-      if (flockRef.current.length === 0) createFlock(configRef.current.count)
+      if (flockRef.current.length === 0) createFlock(controls.count)
     }
 
     updateSize()
